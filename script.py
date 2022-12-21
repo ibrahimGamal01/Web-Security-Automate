@@ -41,6 +41,30 @@ for subdomain in subdomains:
         results.append({'subdomain': subdomain, 'tool': 'kxss', 'vulnerabilities': kxss_results})
     else:
         results.append({'subdomain': subdomain, 'tool': 'kxss', 'vulnerabilities': 'None detected'})
+     
+    # Check for vulnerabilities using IronWASP
+    ironwasp_output = subprocess.run(['ironwasp', '-u', f'http://{subdomain}'], stdout=subprocess.PIPE).stdout.decode('utf-8')
+    ironwasp_results = re.findall(r'(Vulnerability detected: .*)', ironwasp_output)
+    if ironwasp_results:
+        results.append({'subdomain': subdomain, 'tool': 'IronWASP', 'vulnerabilities': ironwasp_results})
+    else:
+        results.append({'subdomain': subdomain, 'tool': 'IronWASP', 'vulnerabilities': 'None detected'})
+    
+    # Check for web application vulnerabilities using Wfuzz
+    wfuzz_output = subprocess.run(['wfuzz', '-c', '-z', 'file,wordlist.txt', '-d', f"url={subdomain}/FUZZ"], stdout=subprocess.PIPE).stdout.decode('utf-8')
+    wfuzz_results = re.findall(r'(200.*)', wfuzz_output)
+    if wfuzz_results:
+        results.append({'subdomain': subdomain, 'tool': 'Wfuzz', 'vulnerabilities': wfuzz_results})
+    else:
+        results.append({'subdomain': subdomain, 'tool': 'Wfuzz', 'vulnerabilities': 'None detected'})
+    
+    # Check for vulnerabilities using Wapiti
+    wapiti_output = subprocess.run(['wapiti', '-u', f'http://{subdomain}'], stdout=subprocess.PIPE).stdout.decode('utf-8')
+    wapiti_results = re.findall(r'(Vulnerability detected: .*)', wapiti_output)
+    if wapiti_results:
+        results.append({'subdomain': subdomain, 'tool': 'Wapiti', 'vulnerabilities': wapiti_results})
+    else:
+        results.append({'subdomain': subdomain, 'tool': 'Wapiti', 'vulnerabilities': 'None detected'})
 
 # Print the results of the checks
 print(json.dumps(results, indent=4))                        
