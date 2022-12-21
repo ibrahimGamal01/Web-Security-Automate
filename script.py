@@ -25,3 +25,22 @@ for subdomain in subdomains:
         results.append({'subdomain': subdomain, 'tool': 'ffuf', 'vulnerabilities': ffuf_results})
     else:
         results.append({'subdomain': subdomain, 'tool': 'ffuf', 'vulnerabilities': 'None
+
+    # Check for web application firewalls using wafw00f
+    wafw00f_output = subprocess.run(['wafw00f', '-v', subdomain], stdout=subprocess.PIPE).stdout.decode('utf-8')
+    wafw00f_results = re.findall(r'(WAF detected: .*)', wafw00f_output)
+    if wafw00f_results:
+        results.append({'subdomain': subdomain, 'tool': 'wafw00f', 'vulnerabilities': wafw00f_results})
+    else:
+        results.append({'subdomain': subdomain, 'tool': 'wafw00f', 'vulnerabilities': 'None detected'})
+    
+    # Check for cross-site scripting vulnerabilities using kxss
+    kxss_output = subprocess.run(['kxss', '-u', f'http://{subdomain}'], stdout=subprocess.PIPE).stdout.decode('utf-8')
+    kxss_results = re.findall(r'(XSS vulnerabilities detected: .*)', kxss_output)
+    if kxss_results:
+        results.append({'subdomain': subdomain, 'tool': 'kxss', 'vulnerabilities': kxss_results})
+    else:
+        results.append({'subdomain': subdomain, 'tool': 'kxss', 'vulnerabilities': 'None detected'})
+
+# Print the results of the checks
+print(json.dumps(results, indent=4))                        
