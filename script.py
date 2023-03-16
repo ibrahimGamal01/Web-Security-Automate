@@ -1,3 +1,75 @@
+import concurrent.futures
+import requests
+from bs4 import BeautifulSoup
+import csv
+import json
+import subprocess
+
+# take a domain as input
+domain = input("Enter a domain to perform the tests on: ")
+
+# get the subdomains using sublist3r
+subdomains = subprocess.run(['sublist3r', '-d', domain], stdout=subprocess.PIPE).stdout.decode('utf-8').split('\n')
+
+results = []
+
+def check_vulnerabilities(subdomain):
+    try:
+        # Check for vulnerabilities using ZAP
+        zap_response = requests.get(f'http://zap-cli:8080/JSON/core/view/alerts/', params={'baseurl':subdomain})
+        zap_results = json.loads(zap_response.text)
+        if zap_results:
+            results.append({'subdomain': subdomain, 'tool': 'ZAP', 'vulnerabilities': zap_results})
+        else:
+            results.append({'subdomain': subdomain, 'tool': 'ZAP', 'vulnerabilities': 'None detected'})
+
+        # Check for vulnerabilities using ffuf
+        ffuf_response = requests.get(f'http://ffuf:8000/', params={'wordlist':'wordlist.txt', 'target':subdomain})
+        ffuf_results = BeautifulSoup(ffuf_response.text, 'html.parser').find_all("a")
+        if ffuf_results:
+            results.append({'subdomain': subdomain, 'tool': 'ffuf', 'vulnerabilities': ffuf_results})
+        else:
+            results.append({'subdomain': subdomain, 'tool': 'ffuf', 'vulnerabilities': 'None detected'})
+
+        # Check for web application firewalls using wafw00f
+        wafw00f_response = requests.get(f'http://wafw00f:5000/', params={'target':subdomain})
+        wafw00f_results = BeautifulSoup(wafw00f_response.text, 'html.parser').find("p")
+        if wafw00f_results:
+            results.append({'subdomain': subdomain, 'tool': 'wafw00f', 'vulnerabilities': wafw00f_results})
+        else:
+            results.append({'subdomain': subdomain, 'tool': 'Wapiti', 'vulnerabilities': 'None detected'})
+    except Exception as e:
+        print(f'Error: {e}')
+    
+
+# Use concurrent.futures to run the vulnerability checks in parallel
+with concurrent.futures.ThreadPoolExecutor() as executor:
+    # Define a list to store the futures
+    futures = []
+    for subdomain in subdomains:
+    # Use the submit method to add the vulnerability check function to the thread pool
+        futures.append(executor.submit(check_vulnerabilities, subdomain))
+
+# Use the as_completed method to iterate through the completed futures
+for future in concurrent.futures.as_completed(futures):
+    # Get the result of the future and append it to the results list
+    result = future.result()
+    if result:
+        results.append(result)
+
+with open('vulnerability_scan_results.csv', 'w', newline='') as csvfile:
+    fieldnames = ['subdomain', 'tool', 'vulnerabilities']
+    writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+    writer.writeheader()
+    for result in results:
+        writer.writerow(result)
+    print(f'Vulnerability scan results for {domain} have been written to vulnerability_scan_results.csv')
+
+
+##############################################
+############### Another Method ############### 
+
+
 # import subprocess
 # import json
 # import re
@@ -67,72 +139,4 @@
 #         results.append({'subdomain': subdomain, 'tool': 'Wapiti', 'vulnerabilities': 'None detected'})
 
 # # Print the results of the checks
-# print(json.dumps(results, indent=4))  
-
-
-import concurrent.futures
-import requests
-from bs4 import BeautifulSoup
-import csv
-import json
-import subprocess
-
-# take a domain as input
-domain = input("Enter a domain to perform the tests on: ")
-
-# get the subdomains using sublist3r
-subdomains = subprocess.run(['sublist3r', '-d', domain], stdout=subprocess.PIPE).stdout.decode('utf-8').split('\n')
-
-results = []
-
-def check_vulnerabilities(subdomain):
-    try:
-        # Check for vulnerabilities using ZAP
-        zap_response = requests.get(f'http://zap-cli:8080/JSON/core/view/alerts/', params={'baseurl':subdomain})
-        zap_results = json.loads(zap_response.text)
-        if zap_results:
-            results.append({'subdomain': subdomain, 'tool': 'ZAP', 'vulnerabilities': zap_results})
-        else:
-            results.append({'subdomain': subdomain, 'tool': 'ZAP', 'vulnerabilities': 'None detected'})
-
-        # Check for vulnerabilities using ffuf
-        ffuf_response = requests.get(f'http://ffuf:8000/', params={'wordlist':'wordlist.txt', 'target':subdomain})
-        ffuf_results = BeautifulSoup(ffuf_response.text, 'html.parser').find_all("a")
-        if ffuf_results:
-            results.append({'subdomain': subdomain, 'tool': 'ffuf', 'vulnerabilities': ffuf_results})
-        else:
-            results.append({'subdomain': subdomain, 'tool': 'ffuf', 'vulnerabilities': 'None detected'})
-
-        # Check for web application firewalls using wafw00f
-        wafw00f_response = requests.get(f'http://wafw00f:5000/', params={'target':subdomain})
-        wafw00f_results = BeautifulSoup(wafw00f_response.text, 'html.parser').find("p")
-        if wafw00f_results:
-            results.append({'subdomain': subdomain, 'tool': 'wafw00f', 'vulnerabilities': wafw00f_results})
-        else:
-            results.append({'subdomain': subdomain, 'tool': 'Wapiti', 'vulnerabilities': 'None detected'})
-    except Exception as e:
-        print(f'Error: {e}')
-    
-
-# Use concurrent.futures to run the vulnerability checks in parallel
-with concurrent.futures.ThreadPoolExecutor() as executor:
-    # Define a list to store the futures
-    futures = []
-    for subdomain in subdomains:
-    # Use the submit method to add the vulnerability check function to the thread pool
-        futures.append(executor.submit(check_vulnerabilities, subdomain))
-
-# Use the as_completed method to iterate through the completed futures
-for future in concurrent.futures.as_completed(futures):
-    # Get the result of the future and append it to the results list
-    result = future.result()
-    if result:
-        results.append(result)
-
-with open('vulnerability_scan_results.csv', 'w', newline='') as csvfile:
-    fieldnames = ['subdomain', 'tool', 'vulnerabilities']
-    writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-    writer.writeheader()
-    for result in results:
-        writer.writerow(result)
-    print(f'Vulnerability scan results for {domain} have been written to vulnerability_scan_results.csv')
+# print(json.dumps(results, indent=4))   
